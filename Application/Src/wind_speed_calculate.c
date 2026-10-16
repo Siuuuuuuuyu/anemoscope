@@ -150,6 +150,7 @@ void corr_find_delay(CrossCorrelation_t *TtoR, uint16_t search_start, uint16_t s
     }
 }
 
+// 风速计算
 void wind_speed_calculate(CrossCorrelation_t *TtoR_1, CrossCorrelation_t *RtoT_1,
                             CrossCorrelation_t *TtoR_2, CrossCorrelation_t *RtoT_2,
                             float *v1, float *v2, float *v)
