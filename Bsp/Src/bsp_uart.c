@@ -6,7 +6,7 @@
 Struct_UART_Manage_Object UART1_Manage_Object;
 
 uint8_t UART1_Rx_Buff[8];
-uint8_t UART1_Tx_Data[4096];
+uint8_t UART1_Tx_Data[2048];
 
 void uart1_callback(uint16_t size)
 {

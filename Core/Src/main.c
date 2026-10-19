@@ -76,6 +76,8 @@ float dt_bd = 0.0f;
 float v_ac = 0.0f;
 float v_bd = 0.0f;
 float v = 0.0f;
+float lag_ac;
+float lag_bd;
 /* USER CODE END 0 */
 
 /**
@@ -118,7 +120,7 @@ int main(void)
   bsp_dma_register_callback(&hdma_tim6_up);
   bsp_uart_init(&huart1, UART1_Rx_Buff, 8, uart1_callback);
   bsp_adc_init();
-  t_ref_generate();
+  // t_ref_generate();
   // memcpy(UART1_Tx_Data, t_ref_data, REF_LENGTH * sizeof(float));
 
   test_data[0] = 0xAB;
@@ -150,7 +152,8 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        corr_find_delay(&AtoC, 30, 250, 50.0f, 0.9f);
+        memcpy(AtoC.r_data, adc_raw_data, sizeof(AtoC.r_data));
+        // corr_find_delay(&AtoC, 30, 250, 50.0f, 0.95f);
         break;
       }
       case 1:
@@ -165,7 +168,9 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        corr_find_delay(&CtoA, 30, 250, 50.0f, 0.9f);
+        memcpy(CtoA.r_data, adc_raw_data, sizeof(CtoA.r_data));
+        // corr_find_delay(&CtoA, 30, 250, 50.0f, 0.95f);
+        pair_corr_find_delay(&AtoC, &CtoA, &lag_ac);
         break;
       }
       case 2:
@@ -180,7 +185,8 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        corr_find_delay(&BtoD, 30, 250, 50.0f, 0.9f);
+        memcpy(BtoD.r_data, adc_raw_data, sizeof(BtoD.r_data));
+        // corr_find_delay(&BtoD, 30, 250, 50.0f, 0.95f);
         break;
       }
       case 3:
@@ -195,7 +201,9 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        corr_find_delay(&DtoB, 30, 250, 50.0f, 0.9f);
+        memcpy(DtoB.r_data, adc_raw_data, sizeof(DtoB.r_data));
+        // corr_find_delay(&DtoB, 30, 250, 50.0f, 0.95f);
+        pair_corr_find_delay(&BtoD, &DtoB, &lag_bd);
         break;
       }
       case 4:
@@ -203,7 +211,10 @@ int main(void)
         // 计算两个方向风速
         // dt_ac = CtoA.delay_t_us - AtoC.delay_t_us;
         // dt_bd = DtoB.delay_t_us - BtoD.delay_t_us;
-        wind_speed_calculate(&AtoC, &CtoA, &BtoD, &DtoB, &v_ac, &v_bd, &v);
+        // wind_speed_calculate(&AtoC, &CtoA, &BtoD, &DtoB, &v_ac, &v_bd, &v);
+        dt_ac = lag_ac / SAMPLE_RATE;
+        dt_bd = lag_bd / SAMPLE_RATE;
+        wind_speed_calculate(dt_ac, dt_bd, &v_ac, &v_bd, &v);
         for (uint8_t i = 0; i < 4; i++)
           test_data[1 + i] = *((uint8_t *)&v_ac + i);
         bsp_uart_send(&huart1, test_data, 5);
@@ -231,7 +242,7 @@ int main(void)
     //   r_get_average();
     // else
     // {
-    //   if (send_index < 4096)
+    //   if (send_index < 2048)
     //   {
     //     test_data[1] = UART1_Tx_Data[send_index];
     //     test_data[2] = UART1_Tx_Data[send_index + 1];

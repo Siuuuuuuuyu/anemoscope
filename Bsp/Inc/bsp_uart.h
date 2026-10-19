@@ -9,7 +9,7 @@
 #include "usart.h"
 
 extern uint8_t UART1_Rx_Buff[8];
-extern uint8_t UART1_Tx_Data[4096];
+extern uint8_t UART1_Tx_Data[2048];
 
 typedef void (*UART_Callback)(uint16_t size);
 
