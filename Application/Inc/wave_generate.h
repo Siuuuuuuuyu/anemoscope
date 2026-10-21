@@ -16,7 +16,7 @@ extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim6;
 extern DMA_HandleTypeDef hdma_tim6_up;
 
-void wave_stop(ChannelPin_t *CH);
+void wave_build(ChannelPin_t *CH);
 void wave_start(ChannelPin_t *CH);
 
 #endif //ANEMOSCOPE_WAVE_GENERATE_H

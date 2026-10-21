@@ -46,7 +46,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Application/Inc/wind_speed_calculate.h
         Application/Src/wind_speed_calculate.c
         Bsp/Inc/bsp_gpio.h
-        Bsp/Src/bsp_gpio.c)
+        Bsp/Src/bsp_gpio.c
+        Bsp/Inc/bsp_tim.h
+        Bsp/Src/bsp_tim.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

@@ -11,18 +11,14 @@ static const float d2 = 0.000648f;
 static const float c2 = 120604.787524f;
 
 float r_data[ADC_SAMPLES];
-float t_raw_data[REF_LENGTH]; // 原始正弦模板
-float t_ref_data[REF_LENGTH]; // 加窗后模板
-static float weight[REF_LENGTH]; // 窗权值
-
-static float t_energy = 0.0f;
-static float w_sum = 0.0f;
-static float t_mean = 0.0f;
 
 CrossCorrelation_t AtoC = {0};
 CrossCorrelation_t CtoA = {0};
 CrossCorrelation_t BtoD = {0};
 CrossCorrelation_t DtoB = {0};
+
+Avrg5Filter_t lag_ac_filter = {0};
+Avrg5Filter_t lag_bd_filter = {0};
 
 void receive_channel_select(ReceiveChannel_t CH)
 {
@@ -43,32 +39,6 @@ void sample_start(ChannelPin_t *CH)
     HAL_TIM_Base_Start(&htim1);
 }
 
-// 加窗正弦模板生成
-void t_ref_generate()
-{
-    w_sum = 0.0f;
-    float weighted_sum = 0.0f;
-    t_energy = 0.0f;
-
-    for (uint8_t i = 0; i < REF_LENGTH; i ++)
-    {
-        t_raw_data[i] = sinf(2.0f * PI * TX_FREQUENCY * (float)i / SAMPLE_RATE);
-
-        float phase = 2.0f * PI * (float)i / (float)(REF_LENGTH - 1);
-        weight[i] = 0.5f * (1.0f - cosf(phase));
-
-        w_sum += weight[i];
-        weighted_sum += weight[i] * t_raw_data[i];
-    }
-    t_mean = weighted_sum / w_sum;
-    for (uint8_t i = 0; i < REF_LENGTH; i ++)
-    {
-        t_ref_data[i] = t_raw_data[i] - t_mean;
-        t_energy += weight[i] * t_ref_data[i] * t_ref_data[i];
-    }
-    // memcpy(UART1_Tx_Data, t_ref_data, REF_LENGTH * sizeof(float));
-}
-
 // 接收波形处理
 void r_get_average()
 {
@@ -79,82 +49,11 @@ void r_get_average()
     float r_avrg = r_sum / ADC_SAMPLES;
     for (uint16_t i = 0; i < ADC_SAMPLES; i ++)
         r_data[i] = (float)adc_raw_data[i] - r_avrg;
-    // memcpy(UART1_Tx_Data, r_data, ADC_SAMPLES * sizeof(float));
-}
-
-// 依据模板进行归一化互相关
-static float normalized_cross_correlation(uint16_t k, float *rms)
-{
-    float weighted_sum = 0.0f;
-    for (uint8_t i = 0; i < REF_LENGTH; i ++)
-        weighted_sum += weight[i] * (float)adc_raw_data[k + i];
-    float r_mean = weighted_sum / w_sum;
-    float numerator = 0.0f;
-    float r_energy = 0.0f;
-    for (uint16_t i = 0; i < REF_LENGTH; i ++)
-    {
-        float r = (float)adc_raw_data[k + i] - r_mean;
-        float s = t_ref_data[i];
-        float w = weight[i];
-        numerator += w * r * s;
-        r_energy += w * r * r;
-    }
-    // rms门限用于过滤噪声
-    *rms = sqrtf(r_energy / w_sum);
-    float denominator = sqrtf(r_energy * t_energy);
-    if (denominator < 1.0e-6f)
-        return 0.0f;
-    // score用于判断波形是否符合
-    return numerator / denominator;
-}
-
-// 依据模板寻找到达延时
-void corr_find_delay(CrossCorrelation_t *TtoR, uint16_t search_start, uint16_t search_end, float min_rms_count, float min_score)
-{
-    if (search_end > ADC_SAMPLES - REF_LENGTH + 1)
-        search_end = ADC_SAMPLES - REF_LENGTH + 1;
-    TtoR->peak_index = 0;
-    TtoR->score = 0.0f;
-    TtoR->window_rms = 0.0f;
-    TtoR->peak_fraction = 0.0f;
-    TtoR->delay_t = 0.0f;
-
-    for (uint16_t i = search_start; i < search_end; i ++)
-    {
-        float rms;
-        float score = fabsf(normalized_cross_correlation(i, &rms));
-        if (rms < min_rms_count)
-            continue;
-
-        if (score > min_score)
-        {
-            // 抛物线插值
-            float rms_dummy;
-            float y_left = fabsf(normalized_cross_correlation(i - 1, &rms_dummy));
-            float y_center = score;
-            float y_right = fabsf(normalized_cross_correlation(i + 1, &rms_dummy));
-
-            float denominator = y_left - 2.0f * y_center + y_right;
-            if (denominator < - 1.0e-6f)
-            {
-                float fraction = 0.5f * (y_left - y_right) / denominator;
-                if (fraction >= -0.5f && fraction <= 0.5f)
-                    TtoR->peak_fraction = fraction;
-                else
-                    TtoR->peak_fraction = 0.0f;
-            }
-
-            TtoR->peak_index = i;
-            TtoR->score = score;
-            TtoR->window_rms = rms;
-            TtoR->delay_t = ((float)TtoR->peak_index + TtoR->peak_fraction) / SAMPLE_RATE;
-            return;
-        }
-    }
+    memcpy(UART1_Tx_Data, r_data, ADC_SAMPLES * sizeof(float));
 }
 
 // 两段接收信号进行归一化互相关
-static float pair_corr(const uint16_t *x_data, const uint16_t *y_data, int lag)
+static float pair_normalized_cross_corr(const uint16_t *x_data, const uint16_t *y_data, int lag)
 {
     float sum_x = 0.0f;
     float sum_y = 0.0f;
@@ -185,8 +84,53 @@ static float pair_corr(const uint16_t *x_data, const uint16_t *y_data, int lag)
     return xy / denominator;
 }
 
+// 3点抛物线插值
+static float parabolic_interpolation_3(const float *corr, int best_index, int corr_count)
+{
+    if (best_index > 0 && best_index < corr_count - 1)
+    {
+        float y_left   = corr[best_index - 1];
+        float y_center = corr[best_index];
+        float y_right  = corr[best_index + 1];
+        float denominator = y_left - 2.0f * y_center + y_right;
+        if (denominator < -1.0e-6f)
+        {
+            float fraction = 0.5f * (y_left - y_right) / denominator;
+            if (fraction < -0.5f || fraction > 0.5f)
+                return 0.0f;
+            return fraction;
+        }
+        return 0.0f;
+    }
+    return 0.0f;
+}
+
+float avrg_5_update(Avrg5Filter_t *filter, float value)
+{
+    if (!filter->initialized)
+    {
+        filter->x0 = value;
+        filter->x1 = value;
+        filter->x2 = value;
+        filter->x3 = value;
+        filter->x4 = value;
+        filter->initialized = 1;
+
+        return value;
+    }
+
+    filter->x0 = filter->x1;
+    filter->x1 = filter->x2;
+    filter->x2 = filter->x3;
+    filter->x3 = filter->x4;
+    filter->x4 = value;
+
+    float avrg = (filter->x0 + filter->x1 + filter->x2 + filter->x3 + filter->x4) / 5.0f;
+    return avrg;
+}
+
 // 两段接收信号寻找时间差
-void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, float *lag)
+void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, float *lag, float *score)
 {
     float corr[2 * PAIR_MAX_LAG + 1];
     float best_score = -2.0f;
@@ -196,7 +140,7 @@ void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, fl
     for (int i = 0; i < corr_count; i ++)
     {
         int k = i - PAIR_MAX_LAG;
-        corr[i] = pair_corr(TtoR->r_data, RtoT->r_data, k);
+        corr[i] = pair_normalized_cross_corr(TtoR->r_data, RtoT->r_data, k);
 
         if (corr[i] > best_score)
         {
@@ -204,22 +148,8 @@ void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, fl
             best_index = i;
         }
     }
-    float fraction = 0.0f;
-    if (best_index > 0 && best_index < corr_count - 1)
-    {
-        float y_left   = corr[best_index - 1];
-        float y_center = corr[best_index];
-        float y_right  = corr[best_index + 1];
-        float denominator = y_left - 2.0f * y_center + y_right;
-        if (denominator < -1.0e-6f)
-        {
-            fraction = 0.5f * (y_left - y_right) / denominator;
+    float fraction = parabolic_interpolation_3(corr, best_index, corr_count);
 
-            // 防止插值结果跑到相邻采样点
-            if (fraction < -0.5f || fraction > 0.5f)
-                fraction = 0.0f;
-        }
-    }
     if (best_index < 0)
     {
         *lag = 0.0f;
@@ -227,6 +157,7 @@ void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, fl
     }
     int best_lag = best_index - PAIR_MAX_LAG;
     *lag = (float)best_lag + fraction;
+    *score = best_score;
 }
 
 // 风速计算

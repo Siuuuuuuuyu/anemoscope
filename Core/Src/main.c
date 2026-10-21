@@ -31,6 +31,7 @@
 #include "bsp_dma.h"
 #include "bsp_uart.h"
 #include "bsp_adc.h"
+#include "bsp_tim.h"
 #include "wave_generate.h"
 #include "wind_speed_calculate.h"
 /* USER CODE END Includes */
@@ -66,18 +67,22 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 uint32_t main_dwt_count = 0;
 uint32_t main_count = 0;
-float dt = 0.01f;
-float task_time = 0;
-float wait_time = 0;
-uint8_t test_data[8];
+float dt_main_s = 0.01f;
+float main_task_time_s = 0.0f;
+float main_wait_time_s = 0.0f;
+uint8_t test_data[10];
 uint16_t send_index = 0;
 float dt_ac = 0.0f;
 float dt_bd = 0.0f;
 float v_ac = 0.0f;
 float v_bd = 0.0f;
 float v = 0.0f;
-float lag_ac;
-float lag_bd;
+float lag_ac = 0.0f;
+float lag_bd = 0.0f;
+float score_ac = 0.0f;
+float score_bd = 0.0f;
+float lag_ac_filtered = 0.0f;
+float lag_bd_filtered = 0.0f;
 /* USER CODE END 0 */
 
 /**
@@ -114,14 +119,13 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM6_Init();
   MX_TIM1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   DWT_Init(80);
   bsp_gpio_init();
   bsp_dma_register_callback(&hdma_tim6_up);
   bsp_uart_init(&huart1, UART1_Rx_Buff, 8, uart1_callback);
   bsp_adc_init();
-  // t_ref_generate();
-  // memcpy(UART1_Tx_Data, t_ref_data, REF_LENGTH * sizeof(float));
 
   test_data[0] = 0xAB;
 
@@ -144,11 +148,8 @@ int main(void)
       {
         // A -> C
         receive_channel_select(C);
-        wave_start(&CHA);
-        while (wave_done == 0)
-        {
-        }
-        sample_start(&CHC);
+        wave_build(&CHA);
+        bsp_tim_start(&htim2, &CHA, &CHC);
         while (sample_done == 0)
         {
         }
@@ -160,28 +161,22 @@ int main(void)
       {
         // C -> A
         receive_channel_select(A);
-        wave_start(&CHC);
-        while (wave_done == 0)
-        {
-        }
-        sample_start(&CHA);
+        wave_build(&CHC);
+        bsp_tim_start(&htim2, &CHC, &CHA);
         while (sample_done == 0)
         {
         }
         memcpy(CtoA.r_data, adc_raw_data, sizeof(CtoA.r_data));
         // corr_find_delay(&CtoA, 30, 250, 50.0f, 0.95f);
-        pair_corr_find_delay(&AtoC, &CtoA, &lag_ac);
+        pair_corr_find_delay(&AtoC, &CtoA, &lag_ac, &score_ac);
         break;
       }
       case 2:
       {
         // B -> D
         receive_channel_select(D);
-        wave_start(&CHB);
-        while (wave_done == 0)
-        {
-        }
-        sample_start(&CHD);
+        wave_build(&CHB);
+        bsp_tim_start(&htim2, &CHB, &CHD);
         while (sample_done == 0)
         {
         }
@@ -193,31 +188,30 @@ int main(void)
       {
         // D -> B
         receive_channel_select(B);
-        wave_start(&CHD);
-        while (wave_done == 0)
-        {
-        }
-        sample_start(&CHB);
+        wave_build(&CHD);
+        bsp_tim_start(&htim2, &CHD, &CHB);
         while (sample_done == 0)
         {
         }
         memcpy(DtoB.r_data, adc_raw_data, sizeof(DtoB.r_data));
         // corr_find_delay(&DtoB, 30, 250, 50.0f, 0.95f);
-        pair_corr_find_delay(&BtoD, &DtoB, &lag_bd);
+        pair_corr_find_delay(&BtoD, &DtoB, &lag_bd, &score_bd);
         break;
       }
       case 4:
       {
         // 计算两个方向风速
-        // dt_ac = CtoA.delay_t_us - AtoC.delay_t_us;
-        // dt_bd = DtoB.delay_t_us - BtoD.delay_t_us;
-        // wind_speed_calculate(&AtoC, &CtoA, &BtoD, &DtoB, &v_ac, &v_bd, &v);
-        dt_ac = lag_ac / SAMPLE_RATE;
-        dt_bd = lag_bd / SAMPLE_RATE;
+        lag_ac_filtered = avrg_5_update(&lag_ac_filter, lag_ac);
+        lag_bd_filtered = avrg_5_update(&lag_bd_filter, lag_bd);
+        dt_ac = lag_ac_filtered / SAMPLE_RATE;
+        dt_bd = lag_bd_filtered / SAMPLE_RATE;
         wind_speed_calculate(dt_ac, dt_bd, &v_ac, &v_bd, &v);
         for (uint8_t i = 0; i < 4; i++)
+        {
           test_data[1 + i] = *((uint8_t *)&v_ac + i);
-        bsp_uart_send(&huart1, test_data, 5);
+          test_data[5 + i] = *((uint8_t *)&v_bd + i);
+        }
+        bsp_uart_send(&huart1, test_data, 9);
         break;
       }
       default:
@@ -229,11 +223,8 @@ int main(void)
     // if (main_count == 0)
     // {
     //   receive_channel_select(C);
-    //   wave_start(&CHA);
-    //   while (wave_done == 0)
-    //   {
-    //   }
-    //   sample_start(&CHC);
+    //   wave_build(&CHA);
+    //   bsp_tim_start(&htim2, &CHA, &CHC);
     //   while (sample_done == 0)
     //   {
     //   }
@@ -275,10 +266,10 @@ int main(void)
     // test_data[2] = (uint8_t)(AtoC.peak_index >> 8);
     // bsp_uart_send(&huart1, test_data, 3);
 
-    task_time = DWT_GetDeltaT(&main_dwt_count);
-    wait_time = dt - task_time;
+    main_task_time_s = DWT_GetDeltaT(&main_dwt_count);
+    main_wait_time_s = dt_main_s - main_task_time_s;
     main_count ++;
-    DWT_Delay(wait_time);
+    DWT_Delay(main_wait_time_s);
   }
   /* USER CODE END 3 */
 }
