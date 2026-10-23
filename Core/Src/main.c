@@ -79,10 +79,10 @@ float v_bd = 0.0f;
 float v = 0.0f;
 float lag_ac = 0.0f;
 float lag_bd = 0.0f;
-float score_ac = 0.0f;
-float score_bd = 0.0f;
-float lag_ac_filtered = 0.0f;
-float lag_bd_filtered = 0.0f;
+float lag_ac_median3filtered = 0.0f;
+float lag_bd_median3filtered = 0.0f;
+float lag_ac_avrg5filtered = 0.0f;
+float lag_bd_avrg5filtered = 0.0f;
 /* USER CODE END 0 */
 
 /**
@@ -153,8 +153,7 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        memcpy(AtoC.r_data, adc_raw_data, sizeof(AtoC.r_data));
-        // corr_find_delay(&AtoC, 30, 250, 50.0f, 0.95f);
+        memcpy(AtoC.r_data, adc_buffer, sizeof(AtoC.r_data));
         break;
       }
       case 1:
@@ -166,9 +165,8 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        memcpy(CtoA.r_data, adc_raw_data, sizeof(CtoA.r_data));
-        // corr_find_delay(&CtoA, 30, 250, 50.0f, 0.95f);
-        pair_corr_find_delay(&AtoC, &CtoA, &lag_ac, &score_ac);
+        memcpy(CtoA.r_data, adc_buffer, sizeof(CtoA.r_data));
+        pair_corr_find_delay(&AtoC, &CtoA, &lag_ac);
         break;
       }
       case 2:
@@ -180,8 +178,7 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        memcpy(BtoD.r_data, adc_raw_data, sizeof(BtoD.r_data));
-        // corr_find_delay(&BtoD, 30, 250, 50.0f, 0.95f);
+        memcpy(BtoD.r_data, adc_buffer, sizeof(BtoD.r_data));
         break;
       }
       case 3:
@@ -193,18 +190,22 @@ int main(void)
         while (sample_done == 0)
         {
         }
-        memcpy(DtoB.r_data, adc_raw_data, sizeof(DtoB.r_data));
-        // corr_find_delay(&DtoB, 30, 250, 50.0f, 0.95f);
-        pair_corr_find_delay(&BtoD, &DtoB, &lag_bd, &score_bd);
+        memcpy(DtoB.r_data, adc_buffer, sizeof(DtoB.r_data));
+        pair_corr_find_delay(&BtoD, &DtoB, &lag_bd);
         break;
       }
       case 4:
       {
         // 计算两个方向风速
-        lag_ac_filtered = avrg_5_update(&lag_ac_filter, lag_ac);
-        lag_bd_filtered = avrg_5_update(&lag_bd_filter, lag_bd);
-        dt_ac = lag_ac_filtered / SAMPLE_RATE;
-        dt_bd = lag_bd_filtered / SAMPLE_RATE;
+        // 先3点取中值，再5点取平均
+        lag_ac_median3filtered = median_3_updata(&lag_ac_median3filter, lag_ac);
+        lag_bd_median3filtered = median_3_updata(&lag_bd_median3filter, lag_bd);
+        lag_ac_avrg5filtered = avrg_5_update(&lag_ac_avrg5filter, lag_ac_median3filtered);
+        lag_bd_avrg5filtered = avrg_5_update(&lag_bd_avrg5filter, lag_bd_median3filtered);
+        dt_ac = lag_ac_avrg5filtered / SAMPLE_RATE;
+        dt_bd = lag_bd_avrg5filtered / SAMPLE_RATE;
+        // dt_ac = lag_ac / SAMPLE_RATE;
+        // dt_bd = lag_bd / SAMPLE_RATE;
         wind_speed_calculate(dt_ac, dt_bd, &v_ac, &v_bd, &v);
         for (uint8_t i = 0; i < 4; i++)
         {
@@ -222,9 +223,9 @@ int main(void)
     // sample_done = 0;
     // if (main_count == 0)
     // {
-    //   receive_channel_select(C);
+    //   receive_channel_select(B);
     //   wave_build(&CHA);
-    //   bsp_tim_start(&htim2, &CHA, &CHC);
+    //   bsp_tim_start(&htim2, &CHA, &CHB);
     //   while (sample_done == 0)
     //   {
     //   }
@@ -233,7 +234,7 @@ int main(void)
     //   r_get_average();
     // else
     // {
-    //   if (send_index < 2048)
+    //   if (send_index < 4096)
     //   {
     //     test_data[1] = UART1_Tx_Data[send_index];
     //     test_data[2] = UART1_Tx_Data[send_index + 1];
@@ -269,6 +270,9 @@ int main(void)
     main_task_time_s = DWT_GetDeltaT(&main_dwt_count);
     main_wait_time_s = dt_main_s - main_task_time_s;
     main_count ++;
+    // for (uint8_t i = 0; i < 4; i++)
+    //   test_data[1 + i] = *((uint8_t *)&main_task_time_s + i);
+    // bsp_uart_send(&huart1, test_data, 5);
     DWT_Delay(main_wait_time_s);
   }
   /* USER CODE END 3 */

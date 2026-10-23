@@ -11,7 +11,7 @@
 #include "wind_speed_calculate.h"
 
 #define WAVE_START_TICKS    20
-#define SAMPLE_START_TICKS  105
+#define SAMPLE_START_TICKS  120
 
 void bsp_tim_start(TIM_HandleTypeDef *htim, ChannelPin_t *tx, ChannelPin_t *rx);
 

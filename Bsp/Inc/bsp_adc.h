@@ -11,7 +11,7 @@
 #include "string.h"
 #include "bsp_uart.h"
 
-#define ADC_SAMPLES 512
+#define ADC_SAMPLES 600
 
 extern volatile uint8_t sample_done;
 extern uint16_t adc_buffer[ADC_SAMPLES];

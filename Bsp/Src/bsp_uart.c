@@ -6,11 +6,11 @@
 Struct_UART_Manage_Object UART1_Manage_Object;
 
 uint8_t UART1_Rx_Buff[8];
-uint8_t UART1_Tx_Data[2048];
+uint8_t UART1_Tx_Data[4096];
 
 void uart1_callback(uint16_t size)
 {
-    bsp_uart_send(&huart1, UART1_Rx_Buff, size);
+    // bsp_uart_send(&huart1, UART1_Rx_Buff, size);
 }
 
 void bsp_uart_init(UART_HandleTypeDef *huart, uint8_t *Rx_Buffer, uint16_t Rx_Buffer_Size, UART_Callback Callback_Function)

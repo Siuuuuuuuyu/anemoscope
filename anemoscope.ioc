@@ -1,6 +1,6 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-1\#ChannelRegularConversion=ADC_CHANNEL_5
-ADC1.ClockPrescaler=ADC_CLOCK_ASYNC_DIV2
+ADC1.ClockPrescaler=ADC_CLOCK_ASYNC_DIV1
 ADC1.CommonPathInternal=null|null|null|null
 ADC1.ContinuousConvMode=DISABLE
 ADC1.ExternalTrigConv=ADC_EXTERNALTRIG_T1_TRGO
@@ -192,7 +192,7 @@ ProjectManager.ToolChainLocation=
 ProjectManager.UAScriptAfterPath=
 ProjectManager.UAScriptBeforePath=
 ProjectManager.UnderRoot=false
-ProjectManager.functionlistsort=1-SystemClock_Config-RCC-false-HAL-false,2-MX_GPIO_Init-GPIO-false-HAL-true,3-MX_DMA_Init-DMA-false-HAL-true,4-MX_ADC1_Init-ADC1-false-HAL-true,5-MX_USART1_UART_Init-USART1-false-HAL-true,6-MX_TIM6_Init-TIM6-false-HAL-true,7-MX_TIM1_Init-TIM1-false-HAL-true
+ProjectManager.functionlistsort=1-SystemClock_Config-RCC-false-HAL-false,2-MX_GPIO_Init-GPIO-false-HAL-true,3-MX_DMA_Init-DMA-false-HAL-true,4-MX_ADC1_Init-ADC1-false-HAL-true,5-MX_USART1_UART_Init-USART1-false-HAL-true,6-MX_TIM6_Init-TIM6-false-HAL-true,7-MX_TIM1_Init-TIM1-false-HAL-true,8-MX_TIM2_Init-TIM2-false-HAL-true
 RCC.ADCFreq_Value=64000000
 RCC.AHBFreq_Value=80000000
 RCC.APB1Freq_Value=80000000
@@ -246,7 +246,7 @@ STMicroelectronics.X-CUBE-ALGOBUILD.1.5.0.IPParameters=LibraryCcDSPOoLibraryJjDS
 STMicroelectronics.X-CUBE-ALGOBUILD.1.5.0.LibraryCcDSPOoLibraryJjDSPOoLibrary=true
 STMicroelectronics.X-CUBE-ALGOBUILD.1.5.0_SwParameter=LibraryCcDSPOoLibraryJjDSPOoLibrary\:true;
 TIM1.IPParameters=TIM_MasterOutputTrigger,Period
-TIM1.Period=124
+TIM1.Period=49
 TIM1.TIM_MasterOutputTrigger=TIM_TRGO_UPDATE
 TIM2.Channel-Output\ Compare1\ No\ Output=TIM_CHANNEL_1
 TIM2.Channel-Output\ Compare2\ No\ Output=TIM_CHANNEL_2
