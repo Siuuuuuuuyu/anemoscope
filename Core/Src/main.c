@@ -70,19 +70,43 @@ uint32_t main_count = 0;
 float dt_main_s = 0.01f;
 float main_task_time_s = 0.0f;
 float main_wait_time_s = 0.0f;
-uint8_t test_data[10];
+uint8_t test_data[20];
 uint16_t send_index = 0;
+
 float dt_ac = 0.0f;
 float dt_bd = 0.0f;
-float v_ac = 0.0f;
-float v_bd = 0.0f;
-float v = 0.0f;
+
 float lag_ac = 0.0f;
 float lag_bd = 0.0f;
 float lag_ac_median3filtered = 0.0f;
 float lag_bd_median3filtered = 0.0f;
 float lag_ac_avrg5filtered = 0.0f;
 float lag_bd_avrg5filtered = 0.0f;
+
+float v_ac = 0.0f;
+float v_bd = 0.0f;
+float v = 0.0f;
+float v_ac_median3filtered = 0.0f;
+float v_bd_median3filtered = 0.0f;
+float v_median3filtered = 0.0f;
+float v_ac_avrg5filtered = 0.0f;
+float v_bd_avrg5filtered = 0.0f;
+float v_avrg5filtered = 0.0f;
+
+// float dt_ab = 0.0f;
+// float dt_ad = 0.0f;
+// float dt_cb = 0.0f;
+// float dt_cd = 0.0f;
+// float v_ab = 0.0f;
+// float v_ad = 0.0f;
+// float v_cb = 0.0f;
+// float v_cd = 0.0f;
+// float lag_ab = 0.0f;
+// float lag_ad = 0.0f;
+// float lag_cb = 0.0f;
+// float lag_cd = 0.0f;
+// float v_x = 0.0f;
+// float v_y = 0.0f;
 /* USER CODE END 0 */
 
 /**
@@ -140,6 +164,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
     DWT_GetDeltaT(&main_dwt_count);
 
+    // 对角线测风速
     wave_done = 0;
     sample_done = 0;
     switch (main_count % 5)
@@ -206,26 +231,165 @@ int main(void)
         dt_bd = lag_bd_avrg5filtered / SAMPLE_RATE;
         // dt_ac = lag_ac / SAMPLE_RATE;
         // dt_bd = lag_bd / SAMPLE_RATE;
-        wind_speed_calculate(dt_ac, dt_bd, &v_ac, &v_bd, &v);
+
+        wind_speed_calculate_diagonal(dt_ac, dt_bd, &v_ac, &v_bd, &v);
+
+        // 风速滤波
+        v_ac_median3filtered = median_3_updata(&v_ac_median3filter, v_ac);
+        v_bd_median3filtered = median_3_updata(&v_bd_median3filter, v_bd);
+        v_median3filtered = median_3_updata(&v_median3filter, v);
+        v_ac_avrg5filtered = avrg_5_update(&v_ac_avrg5filter, v_ac_median3filtered);
+        v_bd_avrg5filtered = avrg_5_update(&v_bd_avrg5filter, v_bd_median3filtered);
+        v_avrg5filtered = avrg_5_update(&v_avrg5filter, v_median3filtered);
+
         for (uint8_t i = 0; i < 4; i++)
         {
-          test_data[1 + i] = *((uint8_t *)&v_ac + i);
-          test_data[5 + i] = *((uint8_t *)&v_bd + i);
+          test_data[1 + i] = *((uint8_t *)&v_ac_avrg5filtered + i);
+          test_data[5 + i] = *((uint8_t *)&v_bd_avrg5filtered + i);
+          test_data[9 + i] = *((uint8_t *)&v_avrg5filtered + i);
         }
-        bsp_uart_send(&huart1, test_data, 9);
+        bsp_uart_send(&huart1, test_data, 13);
+
         break;
       }
       default:
         break;
     }
 
+    // 四边形测风速
+    // wave_done = 0;
+    // sample_done = 0;
+    // switch (main_count % 9)
+    // {
+    //   case 0:
+    //   {
+    //     // A -> B
+    //     receive_channel_select(B);
+    //     wave_build(&CHA);
+    //     bsp_tim_start(&htim2, &CHA, &CHB);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(AtoB.r_data, adc_buffer, sizeof(AtoB.r_data));
+    //     break;
+    //   }
+    //   case 1:
+    //   {
+    //     // A -> D
+    //     receive_channel_select(D);
+    //     wave_build(&CHA);
+    //     bsp_tim_start(&htim2, &CHA, &CHD);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(AtoD.r_data, adc_buffer, sizeof(AtoD.r_data));
+    //     break;
+    //   }
+    //   case 2:
+    //   {
+    //     // C -> B
+    //     receive_channel_select(B);
+    //     wave_build(&CHC);
+    //     bsp_tim_start(&htim2, &CHC, &CHB);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(CtoB.r_data, adc_buffer, sizeof(CtoB.r_data));
+    //     break;
+    //   }
+    //   case 3:
+    //   {
+    //     // C -> D
+    //     receive_channel_select(D);
+    //     wave_build(&CHC);
+    //     bsp_tim_start(&htim2, &CHC, &CHD);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(CtoD.r_data, adc_buffer, sizeof(CtoD.r_data));
+    //     break;
+    //   }
+    //   case 4:
+    //   {
+    //     // B -> A
+    //     receive_channel_select(A);
+    //     wave_build(&CHB);
+    //     bsp_tim_start(&htim2, &CHB, &CHA);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(BtoA.r_data, adc_buffer, sizeof(BtoA.r_data));
+    //     pair_corr_find_delay(&AtoB, &BtoA, &lag_ab);
+    //     break;
+    //   }
+    //   case 5:
+    //   {
+    //     // B -> C
+    //     receive_channel_select(C);
+    //     wave_build(&CHB);
+    //     bsp_tim_start(&htim2, &CHB, &CHC);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(BtoC.r_data, adc_buffer, sizeof(BtoC.r_data));
+    //     pair_corr_find_delay(&CtoB, &BtoC, &lag_cb);
+    //     break;
+    //   }
+    //   case 6:
+    //   {
+    //     // D -> A
+    //     receive_channel_select(A);
+    //     wave_build(&CHD);
+    //     bsp_tim_start(&htim2, &CHD, &CHA);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(DtoA.r_data, adc_buffer, sizeof(DtoA.r_data));
+    //     pair_corr_find_delay(&AtoD, &DtoA, &lag_ad);
+    //     break;
+    //   }
+    //   case 7:
+    //   {
+    //     // D -> C
+    //     receive_channel_select(C);
+    //     wave_build(&CHD);
+    //     bsp_tim_start(&htim2, &CHD, &CHC);
+    //     while (sample_done == 0)
+    //     {
+    //     }
+    //     memcpy(DtoC.r_data, adc_buffer, sizeof(DtoC.r_data));
+    //     pair_corr_find_delay(&CtoD, &DtoC, &lag_cd);
+    //     break;
+    //   }
+    //   case 8:
+    //   {
+    //     dt_ab = lag_ab / SAMPLE_RATE;
+    //     dt_ad = lag_ad / SAMPLE_RATE;
+    //     dt_cb = lag_cb / SAMPLE_RATE;
+    //     dt_cd = lag_cd / SAMPLE_RATE;
+    //     wind_speed_calculate_quadrilateral(dt_ab, &v_ab);
+    //     wind_speed_calculate_quadrilateral(dt_ad, &v_ad);
+    //     wind_speed_calculate_quadrilateral(dt_cb, &v_cb);
+    //     wind_speed_calculate_quadrilateral(dt_cd, &v_cd);
+    //     for (uint8_t i = 0; i < 4; i++)
+    //     {
+    //       test_data[1 + i] = *((uint8_t *)&v_ab + i);
+    //       test_data[5 + i] = *((uint8_t *)&v_cd + i);
+    //     }
+    //     bsp_uart_send(&huart1, test_data, 9);
+    //     break;
+    //   }
+    //   default:
+    //     break;
+    // }
+
     // wave_done = 0;
     // sample_done = 0;
     // if (main_count == 0)
     // {
-    //   receive_channel_select(B);
+    //   receive_channel_select(C);
     //   wave_build(&CHA);
-    //   bsp_tim_start(&htim2, &CHA, &CHB);
+    //   bsp_tim_start(&htim2, &CHA, &CHC);
     //   while (sample_done == 0)
     //   {
     //   }
@@ -270,9 +434,11 @@ int main(void)
     main_task_time_s = DWT_GetDeltaT(&main_dwt_count);
     main_wait_time_s = dt_main_s - main_task_time_s;
     main_count ++;
+
     // for (uint8_t i = 0; i < 4; i++)
     //   test_data[1 + i] = *((uint8_t *)&main_task_time_s + i);
     // bsp_uart_send(&huart1, test_data, 5);
+
     DWT_Delay(main_wait_time_s);
   }
   /* USER CODE END 3 */

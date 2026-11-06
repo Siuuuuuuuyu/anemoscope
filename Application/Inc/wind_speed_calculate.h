@@ -22,6 +22,9 @@
 #define CORR_EPSILON    1.0e-8f
 #define PAIR_SPAN       (PAIR_LENGTH + 2 * PAIR_MAX_LAG)
 
+#define zero_bias_ac    0.0f
+#define zero_bias_bd    0.0f
+
 typedef enum
 {
     A = 0,
@@ -60,10 +63,9 @@ typedef struct
 
 void receive_channel_select(ReceiveChannel_t CH);
 void sample_start(ChannelPin_t *CH);
-void t_ref_generate();
 void r_get_average();
-void corr_find_delay(CrossCorrelation_t *TtoR, uint16_t search_start, uint16_t search_end, float min_rms_count, float min_score);
-void wind_speed_calculate(float dt1, float dt2, float *v1, float *v2, float *v);
+void wind_speed_calculate_diagonal(float dt1, float dt2, float *v1, float *v2, float *v);
+void wind_speed_calculate_quadrilateral(float dt, float *v);
 void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, float *lag);
 float median_3_updata(Median3Filter_t *filter, float value);
 float avrg_5_update(Avrg5Filter_t *filter, float value);
@@ -77,5 +79,21 @@ extern Median3Filter_t lag_ac_median3filter;
 extern Median3Filter_t lag_bd_median3filter;
 extern Avrg5Filter_t lag_ac_avrg5filter;
 extern Avrg5Filter_t lag_bd_avrg5filter;
+
+extern Median3Filter_t v_ac_median3filter;
+extern Median3Filter_t v_bd_median3filter;
+extern Median3Filter_t v_median3filter;
+extern Avrg5Filter_t v_ac_avrg5filter;
+extern Avrg5Filter_t v_bd_avrg5filter;
+extern Avrg5Filter_t v_avrg5filter;
+
+extern CrossCorrelation_t AtoB;
+extern CrossCorrelation_t CtoB;
+extern CrossCorrelation_t AtoD;
+extern CrossCorrelation_t CtoD;
+extern CrossCorrelation_t BtoA;
+extern CrossCorrelation_t DtoA;
+extern CrossCorrelation_t BtoC;
+extern CrossCorrelation_t DtoC;
 
 #endif //ANEMOSCOPE_WIND_SPEED_CALCULATE_H

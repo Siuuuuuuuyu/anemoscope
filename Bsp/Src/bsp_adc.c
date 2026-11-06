@@ -3,8 +3,8 @@
 //
 #include "bsp_adc.h"
 
-uint16_t adc_buffer[ADC_SAMPLES];
 volatile uint8_t sample_done = 0;
+uint16_t adc_buffer[ADC_SAMPLES];
 uint16_t adc_raw_data[ADC_SAMPLES];
 
 void bsp_adc_init()
@@ -26,8 +26,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
         HAL_TIM_Base_Stop(&htim1);
         HAL_ADC_Stop_DMA(&hadc1);
 
-        // memcpy(UART1_Tx_Data, adc_buffer, ADC_SAMPLES * sizeof(uint16_t));
-        memcpy(adc_raw_data, adc_buffer, ADC_SAMPLES * sizeof(uint16_t));
+        // memcpy(adc_raw_data, adc_buffer, ADC_SAMPLES * sizeof(uint16_t));
 
         sample_done = 1;
     }

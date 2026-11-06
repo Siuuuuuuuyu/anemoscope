@@ -6,16 +6,18 @@
 // 25.455844122715710878430397035775mm
 static const float d = 0.025455844122716f;
 static const float d2 = 0.000648f;
+static const float l = 0.009f;
+static const float l2 = 0.000081f;
 // static const float h = 0.010f;
-// static const float L = 0.03201562118716f;
 static const float c2 = 120604.787524f;
 
-float r_data[ADC_SAMPLES];
+float rec_data[ADC_SAMPLES];
 
 static float corr_x_centered[PAIR_LENGTH];
 static float corr_y_sum[PAIR_SPAN + 1];
 static float corr_y_sq_sum[PAIR_SPAN + 1];
 
+// 对角线计算风速
 CrossCorrelation_t AtoC = {0};
 CrossCorrelation_t CtoA = {0};
 CrossCorrelation_t BtoD = {0};
@@ -25,6 +27,23 @@ Median3Filter_t lag_ac_median3filter = {0};
 Median3Filter_t lag_bd_median3filter = {0};
 Avrg5Filter_t lag_ac_avrg5filter = {0};
 Avrg5Filter_t lag_bd_avrg5filter = {0};
+
+Median3Filter_t v_ac_median3filter = {0};
+Median3Filter_t v_bd_median3filter = {0};
+Median3Filter_t v_median3filter = {0};
+Avrg5Filter_t v_ac_avrg5filter = {0};
+Avrg5Filter_t v_bd_avrg5filter = {0};
+Avrg5Filter_t v_avrg5filter = {0};
+
+// 四边形计算风速
+CrossCorrelation_t AtoB = {0};
+CrossCorrelation_t CtoB = {0};
+CrossCorrelation_t AtoD = {0};
+CrossCorrelation_t CtoD = {0};
+CrossCorrelation_t BtoA = {0};
+CrossCorrelation_t DtoA = {0};
+CrossCorrelation_t BtoC = {0};
+CrossCorrelation_t DtoC = {0};
 
 void receive_channel_select(ReceiveChannel_t CH)
 {
@@ -54,8 +73,8 @@ void r_get_average()
 
     float r_avrg = r_sum / ADC_SAMPLES;
     for (uint16_t i = 0; i < ADC_SAMPLES; i ++)
-        r_data[i] = (float)adc_raw_data[i] - r_avrg;
-    memcpy(UART1_Tx_Data, r_data, ADC_SAMPLES * sizeof(float));
+        rec_data[i] = (float)adc_raw_data[i] - r_avrg;
+    memcpy(UART1_Tx_Data, rec_data, ADC_SAMPLES * sizeof(float));
 }
 
 // 3点抛物线插值
@@ -217,11 +236,16 @@ void pair_corr_find_delay(CrossCorrelation_t *TtoR, CrossCorrelation_t *RtoT, fl
     int best_lag = best_index - PAIR_MAX_LAG;
     *lag = (float)best_lag + fraction;
 }
-
-// 风速计算
-void wind_speed_calculate(float dt1, float dt2, float *v1, float *v2, float *v)
+// 对角线风速计算
+void wind_speed_calculate_diagonal(float dt1, float dt2, float *v1, float *v2, float *v)
 {
-    *v1 = (c2 * dt1) / (d + sqrtf(d2 + c2 * dt1 * dt1));
-    *v2 = (c2 * dt2) / (d + sqrtf(d2 + c2 * dt2 * dt2));
+    *v1 = (c2 * dt1) / (d + sqrtf(d2 + c2 * dt1 * dt1)) - zero_bias_ac;
+    *v2 = (c2 * dt2) / (d + sqrtf(d2 + c2 * dt2 * dt2)) - zero_bias_bd;
     *v = sqrtf(*v1 * *v1 + *v2 * *v2);
+}
+
+// 四边形风速计算
+void wind_speed_calculate_quadrilateral(float dt, float *v)
+{
+    *v = (c2 * dt) / (l + sqrtf(l2 + c2 * dt * dt));
 }
